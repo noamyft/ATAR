@@ -8,10 +8,31 @@ import numpy as np
 tf.enable_eager_execution()
 print(tf.executing_eagerly())
 
-def get_model():
-    return keras.applications.vgg19.VGG19(include_top=True, weights=None, input_tensor=None, input_shape=None,
-                                   pooling=None, classes=1)
+class VGGme(keras.Model):
 
+    def __init__(self, use_bn=False, use_dp=False, num_classes=10):
+        super(VGGme, self).__init__(name='VGGme')
+
+        self.my_layers = keras.applications.vgg19.VGG19(include_top=True, weights=None,
+                                                  input_tensor=None, input_shape=None,
+                                       pooling=None, classes=1).layers
+
+    def call(self, inputs):
+
+        outputs = inputs
+        for i,layer in enumerate(self.layers):
+            if self.layers[i-1].count_params() > 1580160:
+                with tf.device('/cpu:0'):
+                    outputs = layer(outputs)
+            else:
+                outputs = layer(outputs)
+
+        return outputs
+
+def get_model():
+    result = VGGme()
+    result.predict(np.zeros((1,224,224,3)))
+    return result
 
 def train_valid_test_split(x, y, test_ratio, valid_ratio, random_seed):
     x_train, x_test, y_train, y_test = \
@@ -31,6 +52,7 @@ def train_model(model :keras.Model, x_train, y_train, x_valid, y_valid):
     model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, validation_data=(x_valid, y_valid))
 
 
+
 if __name__ == '__main__':
 
     data_folder = "data/small"
@@ -46,5 +68,6 @@ if __name__ == '__main__':
         train_valid_test_split(x, y, 0.10, 0.15, 42)
 
     model : keras.Model = get_model()
-    # print(model.summary())
+
+    print(model.summary())
     train_model(model, x_train, y_train, x_valid, y_valid)
